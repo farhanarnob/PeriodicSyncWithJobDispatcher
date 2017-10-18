@@ -87,6 +87,7 @@ public class MainActivity extends AppCompatActivity implements
         mToast = Toast.makeText(this, R.string.water_chug_toast, Toast.LENGTH_SHORT);
         mToast.show();
 
+
         Intent incrementWaterCountIntent = new Intent(this, WaterReminderIntentService.class);
         incrementWaterCountIntent.setAction(ReminderTasks.ACTION_INCREMENT_WATER_COUNT);
         startService(incrementWaterCountIntent);
