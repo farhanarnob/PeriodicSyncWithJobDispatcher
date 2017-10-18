@@ -15,8 +15,13 @@
  */
 package com.example.android.background;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.os.BatteryManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.v7.app.AppCompatActivity;
@@ -36,7 +41,8 @@ public class MainActivity extends AppCompatActivity implements
     private TextView mWaterCountDisplay;
     private TextView mChargingCountDisplay;
     private ImageView mChargingImageView;
-
+    private IntentFilter mChargingIntentFilter;
+    private ChargingBroadcastReceiver mChargingBroadcastReceiver;
     private Toast mToast;
 
     @Override
@@ -53,13 +59,48 @@ public class MainActivity extends AppCompatActivity implements
         updateWaterCount();
         updateChargingReminderCount();
 
-        // TODO (23) Schedule the charging reminder
         ReminderUtilities.scheduleChargingReminder(this);
 
         /** Setup the shared preference listener **/
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         prefs.registerOnSharedPreferenceChangeListener(this);
 
+        mChargingIntentFilter = new IntentFilter();
+        mChargingIntentFilter.addAction(Intent.ACTION_POWER_CONNECTED);
+        mChargingIntentFilter.addAction(Intent.ACTION_POWER_DISCONNECTED);
+        mChargingBroadcastReceiver = new ChargingBroadcastReceiver();
+
+
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        registerReceiver(mChargingBroadcastReceiver, mChargingIntentFilter);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            BatteryManager batteryManager = (BatteryManager) getSystemService(BATTERY_SERVICE);
+            boolean isCharging = batteryManager.isCharging();
+            showCharging(isCharging);
+        } else {
+            // COMPLETED (4) If your user is not on M+, then...
+
+            // COMPLETED (5) Create a new intent filter with the action ACTION_BATTERY_CHANGED. This is a
+            // sticky broadcast that contains a lot of information about the battery state.
+            IntentFilter ifilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+            // COMPLETED (6) Set a new Intent object equal to what is returned by registerReceiver, passing in null
+            // for the receiver. Pass in your intent filter as well. Passing in null means that you're
+            // getting the current state of a sticky broadcast - the intent returned will contain the
+            // battery information you need.
+            Intent currentBatteryStatusIntent = registerReceiver(null, ifilter);
+            // COMPLETED (7) Get the integer extra BatteryManager.EXTRA_STATUS. Check if it matches
+            // BatteryManager.BATTERY_STATUS_CHARGING or BatteryManager.BATTERY_STATUS_FULL. This means
+            // the battery is currently charging.
+            int batteryStatus = currentBatteryStatusIntent.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+            boolean isCharging = batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING ||
+                    batteryStatus == BatteryManager.BATTERY_STATUS_FULL;
+            // COMPLETED (8) Update the UI using your showCharging method
+            showCharging(isCharging);
+        }
     }
 
     /**
@@ -96,6 +137,12 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        unregisterReceiver(mChargingBroadcastReceiver);
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         /** Cleanup the shared preference listener **/
@@ -113,6 +160,24 @@ public class MainActivity extends AppCompatActivity implements
             updateWaterCount();
         } else if (PreferenceUtilities.KEY_CHARGING_REMINDER_COUNT.equals(key)) {
             updateChargingReminderCount();
+        }
+    }
+
+    private void showCharging(boolean isCharging) {
+        if (isCharging) {
+            mChargingImageView.setImageResource(R.drawable.ic_power_pink_80px);
+        } else {
+            mChargingImageView.setImageResource(R.drawable.ic_power_grey_80px);
+        }
+    }
+
+    private class ChargingBroadcastReceiver extends BroadcastReceiver {
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            boolean isCharging = (action.equals(Intent.ACTION_POWER_CONNECTED));
+            showCharging(isCharging);
         }
     }
 }
